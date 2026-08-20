@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PitchNet.pt — Plantel</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg: '#0C0F0D',
+          surface: '#14181A',
+          surfacealt: '#1B211D',
+          line: '#262E29',
+          ink: '#F2F4F1',
+          muted: '#8B948C',
+          pitch: '#3FA34D',
+          gold: '#C9A24B',
+          clay: '#C9634B',
+          sky: '#4B8FC9',
+        },
+        fontFamily: {
+          display: ['Oswald', 'sans-serif'],
+          body: ['Inter', 'sans-serif'],
+          mono: ['JetBrains Mono', 'monospace'],
+        }
+      }
+    }
+  }
+</script>
+<style>
+  * { scrollbar-width: thin; scrollbar-color: #2A322C transparent; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #2A322C; border-radius: 8px; }
+  body { background-image: radial-gradient(circle at 1px 1px, rgba(242,244,241,0.035) 1px, transparent 0); background-size: 28px 28px; }
+
+  .stamp { border: 1.5px solid currentColor; position: relative; }
+  .focus-ring:focus-visible { outline: 2px solid #3FA34D; outline-offset: 2px; }
+
+  .card-enter { animation: cardIn .4s ease backwards; }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(8px);} to { opacity: 1; transform: translateY(0);} }
+  @media (prefers-reduced-motion: reduce) { .card-enter { animation: none; } }
+
+  .nav-item[data-active="true"] { background: #1B211D; border-color: #3FA34D; color: #F2F4F1; }
+  .nav-item[data-active="true"] .nav-dot { background: #3FA34D; }
+  .nav-item[data-locked="true"] { opacity: .45; cursor: not-allowed; }
+
+  #modal, #modalOverlay, #navOverlay { transition: opacity .25s ease, transform .25s ease; }
+  #modal.closed { opacity: 0; pointer-events: none; transform: translateY(8px) scale(.98); }
+  #modalOverlay.closed, #navOverlay.closed { opacity: 0; pointer-events: none; }
+
+  .bar-fill { transition: width .6s cubic-bezier(.16,1,.3,1); }
+
+  input[type="checkbox"].perm { accent-color: #3FA34D; }
+
+  #appNav { transition: transform .3s cubic-bezier(.16,1,.3,1); }
+
+  .app-link[data-active="true"] { background: #1B211D; border-color: #262E29; color: #F2F4F1; }
+  .app-link[data-active="true"] .app-dot { background: #3FA34D; }
+  .app-link[data-locked="true"] .app-lockbadge { opacity: 1; }
+
+  .staff-sub[data-active="true"] { color: #F2F4F1; }
+  .staff-sub[data-active="true"] .staff-sub-dot { background: #3FA34D; box-shadow: 0 0 0 3px rgba(63,163,77,.18); }
+
+  .chev { transition: transform .25s ease; }
+  .chev.open { transform: rotate(180deg); }
+</style>
+</head>
+<body class="bg-bg text-ink font-body min-h-screen">
+
+<div class="flex min-h-screen">
+
+  <!-- ===================== APP SHELL SIDEBAR ===================== -->
+  <div id="navOverlay" class="closed fixed inset-0 bg-black/60 z-40 md:hidden"></div>
+
+  <aside id="appNav" class="fixed inset-y-0 left-0 z-50 -translate-x-full md:translate-x-0 md:sticky md:top-0 w-72 h-screen shrink-0 flex flex-col bg-surface border-r border-line overflow-y-auto">
+    <div class="px-5 py-5 flex items-center gap-3 border-b border-line">
+      <div class="w-9 h-9 rounded-sm border-2 border-pitch flex items-center justify-center font-display font-semibold text-pitch text-sm shrink-0">PN</div>
+      <div class="min-w-0">
+        <p class="font-display uppercase tracking-wide text-base leading-none truncate">PitchNet<span class="text-pitch">.pt</span></p>
+        <p class="text-[10px] text-muted font-mono mt-1">plataforma de clube</p>
+      </div>
+      <button id="closeNavBtn" class="focus-ring ml-auto md:hidden text-muted hover:text-ink">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <nav class="flex-1 px-3 py-4 flex flex-col gap-1" id="appNavList"></nav>
+
+    <div class="px-5 py-4 border-t border-line">
+      <p class="text-[10px] font-mono text-muted">v0.4 · demo interno</p>
+    </div>
+  </aside>
+
+  <!-- ===================== CONTENT COLUMN ===================== -->
+  <div class="flex-1 min-w-0 flex flex-col">
+
+    <header class="sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur">
+      <div class="px-5 md:px-8 py-4 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3 min-w-0">
+          <button id="openNavBtn" class="focus-ring md:hidden text-muted hover:text-ink shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <div id="headerBrand" class="flex items-center gap-3 min-w-0"></div>
+        </div>
+
+        <div class="flex items-center gap-2 md:gap-3 shrink-0" id="headerActions"></div>
+      </div>
+    </header>
+
+    <div class="max-w-7xl w-full mx-auto px-5 md:px-8 py-8 flex flex-col md:flex-row gap-6" id="contentWrap">
+      <nav id="sideNav" class="md:w-60 shrink-0 flex md:flex-col gap-2 overflow-x-auto md:overflow-visible pb-1 md:pb-0"></nav>
+      <main id="mainArea" class="flex-1 min-w-0"></main>
+    </div>
+  </div>
+</div>
+
+<!-- Permissions modal -->
+<div id="modalOverlay" class="closed fixed inset-0 bg-black/60 z-40"></div>
+<div id="modal" class="closed fixed inset-0 z-50 flex items-center justify-center p-5">
+  <div class="w-full max-w-2xl bg-surface border border-line rounded-lg max-h-[85vh] overflow-y-auto">
+    <div class="flex items-center justify-between px-6 py-5 border-b border-line">
+      <div>
+        <h2 class="font-display text-xl uppercase tracking-tight">Permissões de acesso</h2>
+        <p class="text-xs text-muted mt-1">Diretor e Jogador veem sempre tudo. Define que áreas extra cada função de staff pode consultar.</p>
+      </div>
+      <button id="closeModal" class="focus-ring text-muted hover:text-ink transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="permGrid" class="p-6"></div>
+    <div class="px-6 pb-6">
+      <p class="text-[11px] text-muted font-mono">as caixas a cinzento correspondem à área própria de cada função e não podem ser retiradas</p>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   DOMÍNIO — módulo Plantel (staff areas)
+   ============================================================ */
+const ROLES = [
+  { id: 'diretor',   label: 'Diretor',              short: 'DIR', color: 'gold' },
+  { id: 'jogador',   label: 'Jogador',               short: 'ATL', color: 'sky' },
+  { id: 'treinador', label: 'Treinador Principal',   short: 'TRN', color: 'pitch' },
+  { id: 'fisio',     label: 'Fisioterapeuta',        short: 'FIS', color: 'clay' },
+  { id: 'fisico',    label: 'Preparador Físico',     short: 'PRF', color: 'pitch' },
+  { id: 'nutricao',  label: 'Nutricionista',         short: 'NUT', color: 'gold' },
+];
+
+const AREAS = [
+  { id: 'geral',     label: 'Visão Geral',         owner: 'diretor',   icon: 'home' },
+  { id: 'treino',    label: 'Treino',              owner: 'treinador', icon: 'whistle' },
+  { id: 'fisio',     label: 'Fisioterapia',        owner: 'fisio',     icon: 'cross' },
+  { id: 'fisico',    label: 'Preparação Física',   owner: 'fisico',    icon: 'bolt' },
+  { id: 'nutricao',  label: 'Nutrição',            owner: 'nutricao',  icon: 'leaf' },
+  { id: 'perfil',    label: 'O Meu Perfil',        owner: 'jogador',   icon: 'user' },
+];
+
+let permissions = {
+  treinador: ['treino'],
+  fisio: ['fisio'],
+  fisico: ['fisico'],
+  nutricao: ['nutricao'],
+};
+
+let currentRole = 'diretor';
+let currentArea = 'geral';
+
+const players = [
+  { n: 1,  name: "Rúben Cachola", pos: "GR",  img: "https://loremflickr.com/200/200/goalkeeper,football?lock=101" },
+  { n: 4,  name: "Tiago Bessa",   pos: "DEF", img: "" },
+  { n: 17, name: "André Falcão",  pos: "DEF", img: "https://loremflickr.com/200/200/football,player?lock=217" },
+  { n: 8,  name: "Marco Salema",  pos: "MED", img: "https://loremflickr.com/200/200/soccer,midfielder?lock=308" },
+  { n: 10, name: "Diogo Peralta", pos: "MED", img: "" },
+  { n: 9,  name: "Nuno Estrela",  pos: "AV",  img: "https://loremflickr.com/200/200/football,striker?lock=409" },
+];
+
+function avatar(p, size = 'w-9 h-9') {
+  const fallback = `<span class="fallback text-muted/70 relative flex items-center justify-center w-full h-full"><svg class="w-1/2 h-1/2" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.2"/><path d="M5 21c0-4.5 3-7.5 7-7.5s7 3 7 7.5"/></svg></span>`;
+  if (!p.img) return `<div class="${size} rounded-full bg-surfacealt border border-line overflow-hidden shrink-0">${fallback}</div>`;
+  return `<div class="${size} rounded-full bg-surfacealt border border-line overflow-hidden shrink-0 relative">
+    ${fallback}
+    <img src="${p.img}" alt="${p.name}" loading="lazy" class="absolute inset-0 w-full h-full object-cover" onerror="this.remove();">
+  </div>`;
+}
+
+const ICONS = {
+  home: `<path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1v-9"/>`,
+  whistle: `<circle cx="8" cy="15" r="4"/><path d="M12 15h4a4 4 0 004-4V9h-3l-2-3H9"/><path d="M8 11v-1"/>`,
+  cross: `<path d="M12 3v18M3 12h18" stroke-linecap="round"/>`,
+  bolt: `<path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" stroke-linejoin="round"/>`,
+  leaf: `<path d="M11 20A7 7 0 019 6c3-3 9-3 12 0 0 8-6 12-10 14z"/><path d="M9 15c3-3 6-6 8-8"/>`,
+  user: `<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c1.6-3.6 4.5-5.5 7.5-5.5s5.9 1.9 7.5 5.5"/>`,
+  lock: `<rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 018 0v4"/>`,
+  bell: `<path d="M6 8a6 6 0 0112 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M9.5 19a2.5 2.5 0 005 0"/>`,
+  search: `<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>`,
+  sparkles: `<path d="M12 3l1.4 4.2L18 9l-4.6 1.8L12 15l-1.4-4.2L6 9l4.6-1.8L12 3z" stroke-linejoin="round"/><path d="M19 14.5l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6z" stroke-linejoin="round"/>`,
+  building: `<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 8h1M14 8h1M9 12h1M14 12h1M9 16h1M14 16h1" stroke-linecap="round"/>`,
+  chevronDown: `<path d="M6 9l6 6 6-6"/>`,
+  crown: `<path d="M5 18h14"/><path d="M5.5 18l-1.3-8.5L9 12.5l3-6.5 3 6.5 4.8-3-1.3 8.5z" stroke-linejoin="round"/>`,
+  medal: `<circle cx="12" cy="14.5" r="5.2"/><path d="M9 10.5L6.2 3M15 10.5l2.8-7.5" stroke-linecap="round"/>`,
+  scope: `<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.2"/><path d="M12 2.5v3.5M12 18v3.5M2.5 12H6M18 12h3.5" stroke-linecap="round"/>`,
+  chart: `<path d="M4 20h16" stroke-linecap="round"/><rect x="6" y="12" width="3" height="6"/><rect x="10.5" y="7" width="3" height="11"/><rect x="15" y="4" width="3" height="14"/>`,
+  pulse: `<path d="M3 12h3.5l1.8-5 3 10 2-7.5 1.2 2.5H21" stroke-linejoin="round" stroke-linecap="round"/>`,
+  lifebuoy: `<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.2"/><path d="M6.3 6.3l2.6 2.6M17.7 6.3l-2.6 2.6M6.3 17.7l2.6-2.6M17.7 17.7l-2.6-2.6"/>`,
+  idcard: `<rect x="3" y="5" width="18" height="14" rx="1.5"/><circle cx="8.3" cy="11.6" r="2"/><path d="M13 10h5M13 13.5h5" stroke-linecap="round"/><path d="M5.8 16.3c.5-1.4 1.6-2.1 2.5-2.1s2 .7 2.5 2.1" stroke-linecap="round"/>`,
+  gear: `<path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/>`,
+};
+function icon(name, cls = 'w-4 h-4') {
+  return `<svg class="${cls}" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</svg>`;
+}
+
+/* ---------- Acesso (Plantel) ---------- */
+function canAccess(role, areaId) {
+  if (role === 'diretor' || role === 'jogador') return true;
+  const area = AREAS.find(a => a.id === areaId);
+  if (area && area.owner === role) return true;
+  return (permissions[role] || []).includes(areaId);
+}
+function visibleAreasFor(role) {
+  return AREAS.filter(a => {
+    if (a.id === 'geral') return role === 'diretor';
+    if (a.id === 'perfil') return role === 'jogador' || role === 'diretor';
+    return true;
+  });
+}
+
+/* ---------- Nav lateral (áreas de staff) ---------- */
+function renderNav() {
+  document.getElementById('sideNav').classList.remove('hidden');
+  const areas = visibleAreasFor(currentRole);
+  if (!areas.find(a => a.id === currentArea)) currentArea = areas[0].id;
+
+  document.getElementById('sideNav').innerHTML = areas.map(a => {
+    const allowed = canAccess(currentRole, a.id);
+    const active = a.id === currentArea;
+    return `
+      <button data-area="${a.id}" data-active="${active}" data-locked="${!allowed}"
+        class="nav-item focus-ring shrink-0 w-full flex items-center gap-3 px-3.5 py-2.5 rounded-md border border-transparent text-sm text-muted transition-colors hover:text-ink hover:bg-surfacealt/60 text-left">
+        <span class="nav-dot w-1.5 h-1.5 rounded-full bg-line shrink-0"></span>
+        ${icon(allowed ? a.icon : 'lock', 'w-4 h-4 shrink-0')}
+        <span class="whitespace-nowrap md:whitespace-normal">${a.label}</span>
+      </button>`;
+  }).join('');
+
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.area;
+      if (!canAccess(currentRole, id)) {
+        renderLockedArea(AREAS.find(a => a.id === id));
+        currentArea = id;
+        renderNav();
+        renderAppNav();
+        return;
+      }
+      currentArea = id;
+      renderNav();
+      renderMain();
+      renderAppNav();
+    });
+  });
+}
+
+function renderLockedArea(area) {
+  document.getElementById('mainArea').innerHTML = `
+    <div class="card-enter border border-dashed border-line rounded-lg py-16 flex flex-col items-center gap-3 text-center">
+      ${icon('lock', 'w-6 h-6 text-muted')}
+      <p class="font-display text-lg uppercase tracking-tight">Sem acesso a esta área</p>
+      <p class="text-sm text-muted max-w-xs">A função <span class="text-ink">${ROLES.find(r => r.id === currentRole).label}</span> não tem permissão para consultar <span class="text-ink">${area.label}</span>. O Diretor pode alterar isto em Permissões.</p>
+      ${currentRole === 'diretor' ? '' : `<button onclick="document.getElementById('openPerms').click()" class="focus-ring mt-2 text-xs font-mono uppercase tracking-wide text-pitch border border-pitch/40 rounded-full px-4 py-2 hover:bg-pitch/10 transition-colors">Pedir acesso ao Diretor</button>`}
+    </div>`;
+}
+
+function areaHeader(title, subtitle, roleColor) {
+  return `
+    <div class="flex items-start justify-between gap-4 mb-6">
+      <div>
+        <p class="font-mono text-[11px] uppercase tracking-widest text-${roleColor} mb-1">${ROLES.find(r=>r.id===currentRole).label}</p>
+        <h1 class="font-display text-2xl md:text-3xl uppercase tracking-tight">${title}</h1>
+        <p class="text-muted text-sm mt-1 max-w-xl">${subtitle}</p>
+      </div>
+    </div>`;
+}
+
+function renderMain() {
+  const el = document.getElementById('mainArea');
+  if (!canAccess(currentRole, currentArea)) return renderLockedArea(AREAS.find(a => a.id === currentArea));
+
+  if (currentArea === 'geral') return el.innerHTML = viewGeral();
+  if (currentArea === 'treino') return el.innerHTML = viewTreino();
+  if (currentArea === 'fisio') return el.innerHTML = viewFisio();
+  if (currentArea === 'fisico') return el.innerHTML = viewFisico();
+  if (currentArea === 'nutricao') return el.innerHTML = viewNutricao();
+  if (currentArea === 'perfil') return el.innerHTML = viewPerfil();
+}
+
+function viewGeral() {
+  const kpis = [
+    { label: 'Jogadores aptos', value: '18/22', tint: 'pitch' },
+    { label: 'Em recuperação', value: '3', tint: 'clay' },
+    { label: 'Próximo jogo', value: '6 dias', tint: 'sky' },
+    { label: 'Carga média semanal', value: '82%', tint: 'gold' },
+  ];
+  const shortcuts = AREAS.filter(a => a.id !== 'geral');
+  return `
+    ${areaHeader('Visão geral do clube', 'Resumo de todas as áreas de staff, sempre visível para a Direção.', 'gold')}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+      ${kpis.map((k,i) => `
+        <div class="card-enter border border-line rounded-lg p-4 bg-surface/40" style="animation-delay:${i*40}ms">
+          <p class="font-display text-2xl text-${k.tint}">${k.value}</p>
+          <p class="text-[11px] font-mono uppercase tracking-wide text-muted mt-1">${k.label}</p>
+        </div>`).join('')}
+    </div>
+
+    <p class="text-[11px] font-mono uppercase tracking-wide text-muted mb-3">Ir para área</p>
+    <div class="grid sm:grid-cols-2 gap-3">
+      ${shortcuts.map((a,i) => `
+        <button data-goto="${a.id}" class="card-enter focus-ring text-left border border-line rounded-lg p-4 bg-surface/40 hover:border-pitch/40 transition-colors flex items-center gap-3" style="animation-delay:${i*40}ms">
+          <span class="w-9 h-9 rounded-md bg-surfacealt border border-line flex items-center justify-center text-pitch">${icon(a.icon, 'w-4 h-4')}</span>
+          <span>
+            <span class="block font-medium">${a.label}</span>
+            <span class="block text-[11px] text-muted font-mono">responsável: ${ROLES.find(r=>r.id===a.owner).label}</span>
+          </span>
+        </button>`).join('')}
+    </div>
+  `;
+}
+
+function viewTreino() {
+  const semana = [
+    { dia: 'Seg', foco: 'Recuperação', tipo: 'Regenerativo', dur: '45 min' },
+    { dia: 'Ter', foco: 'Força', tipo: 'Ginásio + campo', dur: '90 min' },
+    { dia: 'Qua', foco: 'Tática', tipo: 'Bloco defensivo', dur: '75 min' },
+    { dia: 'Qui', foco: 'Velocidade', tipo: 'Sprints + jogo reduzido', dur: '80 min' },
+    { dia: 'Sex', foco: 'Bolas paradas', tipo: 'Ensaio + vídeo', dur: '60 min' },
+    { dia: 'Sáb', foco: 'Ativação', tipo: 'Pré-jogo', dur: '30 min' },
+    { dia: 'Dom', foco: 'Jogo', tipo: 'Competição', dur: '90 min' },
+  ];
+  const videos = [
+    { thumb: 'https://picsum.photos/seed/treino-1/300/220', label: 'Bloco defensivo 4-4-2', dur: '4:12' },
+    { thumb: 'https://picsum.photos/seed/treino-2/300/220', label: 'Transições ofensivas', dur: '3:05' },
+    { thumb: 'https://picsum.photos/seed/treino-3/300/220', label: 'Ensaio de canto curto', dur: '1:48' },
+  ];
+  return `
+    ${areaHeader('Plano de treino', 'Microciclo semanal e biblioteca de sessões gravadas.', 'pitch')}
+    <div class="grid grid-cols-3 sm:grid-cols-7 gap-2 mb-8">
+      ${semana.map((d,i) => `
+        <div class="card-enter border border-line rounded-lg p-3 bg-surface/40 text-center" style="animation-delay:${i*30}ms">
+          <p class="font-mono text-[11px] text-muted uppercase">${d.dia}</p>
+          <p class="font-display text-sm mt-1 leading-tight">${d.foco}</p>
+          <p class="text-[10px] text-muted mt-1">${d.tipo}</p>
+          <p class="text-[10px] font-mono text-pitch mt-2">${d.dur}</p>
+        </div>`).join('')}
+    </div>
+    <p class="text-[11px] font-mono uppercase tracking-wide text-muted mb-3">Sessões gravadas</p>
+    <div class="grid sm:grid-cols-3 gap-3">
+      ${videos.map((v,i) => videoCard(v,i)).join('')}
+    </div>
+  `;
+}
+
+function viewFisio() {
+  const estados = [
+    { p: players[5], estado: 'Apto', pct: 100, tint: 'pitch', nota: 'Sem restrições.' },
+    { p: players[2], estado: 'Em recuperação', pct: 65, tint: 'gold', nota: 'Entorse ligeira do tornozelo, 3ª semana de fisioterapia.' },
+    { p: players[3], estado: 'Lesionado', pct: 20, tint: 'clay', nota: 'Rotura muscular, reavaliação prevista para dia 24.' },
+    { p: players[0], estado: 'Apto', pct: 100, tint: 'pitch', nota: 'Sem restrições.' },
+  ];
+  const videos = [
+    { thumb: 'https://picsum.photos/seed/fisio-1/300/220', label: 'Reabilitação de tornozelo', dur: '2:20' },
+    { thumb: 'https://picsum.photos/seed/fisio-2/300/220', label: 'Mobilidade pré-treino', dur: '1:35' },
+  ];
+  return `
+    ${areaHeader('Estado clínico', 'Situação de cada jogador acompanhado pela equipa médica.', 'clay')}
+    <div class="space-y-3 mb-8">
+      ${estados.map((e,i) => `
+        <div class="card-enter border border-line rounded-lg p-4 bg-surface/40 flex items-center gap-4" style="animation-delay:${i*40}ms">
+          ${avatar(e.p, 'w-11 h-11')}
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-3">
+              <p class="font-medium truncate">${e.p.name}</p>
+              <span class="text-[10px] font-mono uppercase tracking-wide text-${e.tint} border border-${e.tint}/40 rounded-full px-2 py-0.5 shrink-0">${e.estado}</span>
+            </div>
+            <p class="text-xs text-muted mt-1">${e.nota}</p>
+            <div class="h-1.5 rounded-full bg-line overflow-hidden mt-2">
+              <div class="bar-fill h-full bg-${e.tint} rounded-full" style="width:${e.pct}%"></div>
+            </div>
+          </div>
+        </div>`).join('')}
+    </div>
+    <p class="text-[11px] font-mono uppercase tracking-wide text-muted mb-3">Exercícios de reabilitação</p>
+    <div class="grid sm:grid-cols-3 gap-3">
+      ${videos.map((v,i) => videoCard(v,i)).join('')}
+    </div>
+  `;
+}
+
+function viewFisico() {
+  const dados = [
+    { p: players[5], vel: 33.2, vo2: 58, carga: 88 },
+    { p: players[3], vel: 30.1, vo2: 61, carga: 76 },
+    { p: players[2], vel: 32.4, vo2: 55, carga: 64 },
+    { p: players[0], vel: 27.8, vo2: 49, carga: 80 },
+  ];
+  const videos = [
+    { thumb: 'https://picsum.photos/seed/fisico-1/300/220', label: 'Sessão de ginásio — força', dur: '3:40' },
+    { thumb: 'https://picsum.photos/seed/fisico-2/300/220', label: 'Teste de velocidade 30m', dur: '0:52' },
+  ];
+  return `
+    ${areaHeader('Testes físicos', 'Métricas de performance recolhidas nos últimos treinos.', 'pitch')}
+    <div class="border border-line rounded-lg overflow-hidden bg-surface/40 mb-8">
+      <div class="hidden md:grid grid-cols-[1fr_100px_100px_140px] gap-4 px-5 py-3 text-[11px] font-mono uppercase tracking-wide text-muted border-b border-line">
+        <span>Jogador</span><span>Vel. máx.</span><span>VO2max</span><span>Carga semanal</span>
+      </div>
+      ${dados.map((d,i) => `
+        <div class="grid grid-cols-2 md:grid-cols-[1fr_100px_100px_140px] gap-4 items-center px-5 py-4 border-b border-line last:border-b-0">
+          <div class="flex items-center gap-3 col-span-2 md:col-span-1">${avatar(d.p)}<span class="font-medium">${d.p.name}</span></div>
+          <span class="font-mono text-sm">${d.vel} <span class="text-muted text-xs">km/h</span></span>
+          <span class="font-mono text-sm">${d.vo2} <span class="text-muted text-xs">ml/kg/min</span></span>
+          <div class="flex items-center gap-2">
+            <div class="h-1.5 flex-1 rounded-full bg-line overflow-hidden"><div class="bar-fill h-full bg-pitch rounded-full" style="width:${d.carga}%"></div></div>
+            <span class="font-mono text-xs text-muted w-8 text-right">${d.carga}%</span>
+          </div>
+        </div>`).join('')}
+    </div>
+    <p class="text-[11px] font-mono uppercase tracking-wide text-muted mb-3">Vídeos de sessões</p>
+    <div class="grid sm:grid-cols-3 gap-3">
+      ${videos.map((v,i) => videoCard(v,i)).join('')}
+    </div>
+  `;
+}
+
+function viewNutricao() {
+  const planos = [
+    { p: players[5], obj: 'Hipertrofia', hid: 3.2 },
+    { p: players[2], obj: 'Manutenção', hid: 2.8 },
+    { p: players[3], obj: 'Recuperação', hid: 3.0 },
+    { p: players[0], obj: 'Manutenção', hid: 2.6 },
+  ];
+  const videos = [
+    { thumb: 'https://picsum.photos/seed/nutri-1/300/220', label: 'Workshop: hidratação em jogo', dur: '5:10' },
+    { thumb: 'https://picsum.photos/seed/nutri-2/300/220', label: 'Receita: pré-treino rápido', dur: '2:05' },
+  ];
+  return `
+    ${areaHeader('Planos alimentares', 'Objetivo nutricional e hidratação de cada jogador.', 'gold')}
+    <div class="grid sm:grid-cols-2 gap-3 mb-8">
+      ${planos.map((d,i) => `
+        <div class="card-enter border border-line rounded-lg p-4 bg-surface/40 flex items-center gap-4" style="animation-delay:${i*40}ms">
+          ${avatar(d.p, 'w-11 h-11')}
+          <div class="flex-1">
+            <p class="font-medium">${d.p.name}</p>
+            <span class="inline-block mt-1 text-[10px] font-mono uppercase tracking-wide text-gold border border-gold/40 rounded-full px-2 py-0.5">${d.obj}</span>
+            <p class="text-xs text-muted mt-2 font-mono">Hidratação · ${d.hid} L / dia</p>
+          </div>
+        </div>`).join('')}
+    </div>
+    <p class="text-[11px] font-mono uppercase tracking-wide text-muted mb-3">Receitas &amp; formação</p>
+    <div class="grid sm:grid-cols-3 gap-3">
+      ${videos.map((v,i) => videoCard(v,i)).join('')}
+    </div>
+  `;
+}
+
+function viewPerfil() {
+  const p = players[5];
+  return `
+    ${areaHeader('O meu perfil', 'Resumo pessoal reunindo dados de todas as áreas de staff.', 'sky')}
+    <div class="flex items-center gap-4 mb-8">
+      ${avatar(p, 'w-16 h-16')}
+      <div>
+        <h2 class="font-display text-xl uppercase leading-tight">${p.name}</h2>
+        <p class="text-muted text-sm">${p.pos} · Nº ${p.n}</p>
+      </div>
+    </div>
+    <div class="grid sm:grid-cols-3 gap-3">
+      <div class="card-enter border border-line rounded-lg p-4 bg-surface/40">
+        <p class="text-[11px] font-mono uppercase tracking-wide text-clay mb-2">Fisioterapia</p>
+        <p class="text-sm">Apto para competir, sem restrições.</p>
+      </div>
+      <div class="card-enter border border-line rounded-lg p-4 bg-surface/40" style="animation-delay:40ms">
+        <p class="text-[11px] font-mono uppercase tracking-wide text-pitch mb-2">Preparação física</p>
+        <p class="text-sm">Carga semanal em 88% do plano. Velocidade máx. 33.2 km/h.</p>
+      </div>
+      <div class="card-enter border border-line rounded-lg p-4 bg-surface/40" style="animation-delay:80ms">
+        <p class="text-[11px] font-mono uppercase tracking-wide text-gold mb-2">Nutrição</p>
+        <p class="text-sm">Plano de hipertrofia, meta de 3.2 L de água por dia.</p>
+      </div>
+    </div>
+  `;
+}
+
+function videoCard(v, i) {
+  return `
+    <div class="card-enter border border-line rounded-lg overflow-hidden bg-surface/40 group cursor-pointer" style="animation-delay:${i*50}ms">
+      <div class="relative aspect-video">
+        <img src="${v.thumb}" alt="${v.label}" loading="lazy" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" onerror="this.remove();">
+        <div class="absolute inset-0 bg-black/15 group-hover:bg-black/5 transition-colors"></div>
+        <span class="absolute inset-0 flex items-center justify-center">
+          <span class="w-9 h-9 rounded-full bg-bg/70 backdrop-blur flex items-center justify-center group-hover:scale-110 group-hover:bg-pitch group-hover:text-bg transition-all">
+            <svg class="w-3.5 h-3.5 translate-x-[1px]" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg>
+          </span>
+        </span>
+        <span class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-sm bg-bg/80 text-[10px] font-mono">${v.dur}</span>
+      </div>
+      <p class="text-sm px-3 py-2.5 truncate">${v.label}</p>
+    </div>`;
+}
+
+/* ---------- Permissões (modal) ---------- */
+function renderPermGrid() {
+  const staff = ROLES.filter(r => r.id !== 'diretor' && r.id !== 'jogador');
+  const areasForPerms = AREAS.filter(a => a.id !== 'geral' && a.id !== 'perfil');
+
+  document.getElementById('permGrid').innerHTML = `
+    <div class="grid" style="grid-template-columns: 160px repeat(${areasForPerms.length}, 1fr);">
+      <div></div>
+      ${areasForPerms.map(a => `<div class="text-[10px] font-mono uppercase tracking-wide text-muted text-center px-1 pb-2">${a.label}</div>`).join('')}
+      ${staff.map(r => `
+        <div class="text-sm py-2 pr-2">${r.label}</div>
+        ${areasForPerms.map(a => {
+          const isOwn = a.owner === r.id;
+          const checked = isOwn || (permissions[r.id] || []).includes(a.id);
+          return `<div class="flex items-center justify-center py-2">
+            <input type="checkbox" class="perm w-4 h-4 rounded" data-role="${r.id}" data-area="${a.id}" ${checked ? 'checked' : ''} ${isOwn ? 'disabled' : ''}>
+          </div>`;
+        }).join('')}
+      `).join('')}
+    </div>
+    <div class="mt-4 pt-4 border-t border-line text-xs text-muted">
+      <span class="text-sky">Jogador</span> e <span class="text-gold">Diretor</span> têm sempre acesso a todas as áreas — não configurável.
+    </div>
+  `;
+
+  document.querySelectorAll('.perm').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const role = cb.dataset.role, area = cb.dataset.area;
+      permissions[role] = permissions[role] || [];
+      if (cb.checked && !permissions[role].includes(area)) permissions[role].push(area);
+      if (!cb.checked) permissions[role] = permissions[role].filter(a => a !== area);
+      renderNav();
+    });
+  });
+}
+
+document.getElementById('closeModal').addEventListener('click', closeModal);
+document.getElementById('modalOverlay').addEventListener('click', closeModal);
+function closeModal() {
+  document.getElementById('modal').classList.add('closed');
+  document.getElementById('modalOverlay').classList.add('closed');
+}
+
+document.getElementById('mainArea').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-goto]');
+  if (btn) {
+    currentArea = btn.dataset.goto;
+    renderNav();
+    renderMain();
+    renderAppNav();
+  }
+});
+
+/* ============================================================
+   APP SHELL — PitchNet.pt (navegação de plataforma)
+   ============================================================ */
+const APP_NAV_PRIMARY = [
+  { id: 'inicio',        label: 'Início',         icon: 'home' },
+  { id: 'notificacoes',  label: 'Notificações',   icon: 'bell', badge: 3 },
+  { id: 'aihub',         label: 'AI Hub',          icon: 'sparkles' },
+  { id: 'pesquisa',      label: 'Pesquisa',        icon: 'search' },
+];
+
+const APP_NAV_BOTTOM = [
+  { id: 'suporte',    label: 'Suporte',        icon: 'lifebuoy' },
+  { id: 'kyc',        label: 'Submeter KYC',   icon: 'idcard' },
+  { id: 'definicoes', label: 'Definições',     icon: 'gear' },
+];
+
+const STAFF_MENU = [
+  { id: 'diretor_geral',       label: 'Diretor Geral',        icon: 'crown',  mapsTo: 'diretor' },
+  { id: 'diretor_desportivo',  label: 'Diretor Desportivo',   icon: 'medal',  mapsTo: null },
+  { id: 'treinador',           label: 'Treinador',            icon: 'whistle',mapsTo: 'treinador' },
+  { id: 'olheiro',             label: 'Olheiro',               icon: 'scope',  mapsTo: null },
+  { id: 'analista',            label: 'Analista',              icon: 'chart',  mapsTo: null },
+  { id: 'fisioterapeuta',      label: 'Fisioterapeuta',        icon: 'cross',  mapsTo: 'fisio' },
+  { id: 'medico',              label: 'Médico',                 icon: 'pulse',  mapsTo: null },
+  { id: 'preparador',          label: 'Preparador Físico',     icon: 'bolt',   mapsTo: 'fisico' },
+  { id: 'nutricionista',       label: 'Nutricionista',         icon: 'leaf',   mapsTo: 'nutricao' },
+];
+
+let appSection = 'staff';      // inicio | notificacoes | aihub | pesquisa | clubes | staff | staff-placeholder | suporte | kyc | definicoes
+let staffMenuOpen = true;
+let placeholderRoleLabel = null;
+
+function renderAppNav() {
+  const primary = APP_NAV_PRIMARY.map(item => appLinkHtml(item)).join('');
+
+  const clubesActive = appSection === 'clubes';
+  const clubesHtml = `
+    <button data-app="clubes" data-locked="true" data-active="${clubesActive}"
+      class="app-link focus-ring w-full flex items-center gap-3 px-3 py-2.5 rounded-md border border-transparent text-sm text-muted transition-colors hover:text-ink hover:bg-surfacealt/60 text-left">
+      <span class="app-dot w-1.5 h-1.5 rounded-full bg-line shrink-0"></span>
+      ${icon('building', 'w-4 h-4 shrink-0')}
+      <span class="flex-1">Clubes &amp; Academias</span>
+      <span class="app-lockbadge opacity-70">${icon('lock', 'w-3.5 h-3.5 text-muted')}</span>
+    </button>`;
+
+  const staffActive = appSection === 'staff' || appSection === 'staff-placeholder';
+  const staffHeaderHtml = `
+    <button id="staffToggle" data-active="${staffActive}"
+      class="app-link focus-ring w-full flex items-center gap-3 px-3 py-2.5 rounded-md border border-transparent text-sm text-muted transition-colors hover:text-ink hover:bg-surfacealt/60 text-left">
+      <span class="app-dot w-1.5 h-1.5 rounded-full bg-line shrink-0"></span>
+      ${icon('user', 'w-4 h-4 shrink-0')}
+      <span class="flex-1">Staff</span>
+      <span class="chev ${staffMenuOpen ? 'open' : ''} text-muted">${icon('chevronDown', 'w-3.5 h-3.5')}</span>
+    </button>`;
+
+  const staffSubHtml = STAFF_MENU.map(role => {
+    const isActive = appSection === 'staff' && role.mapsTo && role.mapsTo === currentRole
+      ? true
+      : appSection === 'staff-placeholder' && placeholderRoleLabel === role.label;
+    return `
+      <button data-staff="${role.id}" data-active="${isActive}"
+        class="staff-sub focus-ring w-full flex items-center gap-2.5 pl-8 pr-3 py-2 rounded-md text-[13px] text-muted hover:text-ink hover:bg-surfacealt/50 transition-colors text-left">
+        <span class="staff-sub-dot w-1 h-1 rounded-full bg-line shrink-0"></span>
+        ${icon(role.icon, 'w-3.5 h-3.5 shrink-0')}
+        <span class="truncate">${role.label}</span>
+      </button>`;
+  }).join('');
+
+  const bottom = APP_NAV_BOTTOM.map(item => appLinkHtml(item)).join('');
+
+  document.getElementById('appNavList').innerHTML = `
+    <div class="flex flex-col gap-1">${primary}</div>
+
+    <p class="text-[10px] font-mono uppercase tracking-widest text-muted/70 px-3 pt-5 pb-2">Plataforma</p>
+    <div class="flex flex-col gap-1">
+      ${clubesHtml}
+      ${staffHeaderHtml}
+      <div id="staffSubList" class="flex flex-col gap-0.5 overflow-hidden transition-all" style="max-height:${staffMenuOpen ? '520px' : '0px'}">
+        ${staffSubHtml}
+      </div>
+    </div>
+
+    <div class="mt-auto pt-5">
+      <div class="border-t border-line pt-3 flex flex-col gap-1">${bottom}</div>
+    </div>
+  `;
+
+  // mount events
+  document.querySelectorAll('.app-link[data-app]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      appSection = btn.dataset.app;
+      placeholderRoleLabel = null;
+      closeMobileNav();
+      renderAll();
+    });
+  });
+
+  document.getElementById('staffToggle').addEventListener('click', () => {
+    staffMenuOpen = !staffMenuOpen;
+    if (appSection !== 'staff' && appSection !== 'staff-placeholder') {
+      appSection = 'staff';
+      currentRole = 'diretor';
+      currentArea = 'geral';
+      placeholderRoleLabel = null;
+    }
+    closeMobileNav();
+    renderAll();
+  });
+
+  document.querySelectorAll('.staff-sub').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const role = STAFF_MENU.find(r => r.id === btn.dataset.staff);
+      if (role.mapsTo) {
+        appSection = 'staff';
+        currentRole = role.mapsTo;
+        currentArea = visibleAreasFor(currentRole)[0].id;
+        placeholderRoleLabel = null;
+      } else {
+        appSection = 'staff-placeholder';
+        placeholderRoleLabel = role.label;
+      }
+      staffMenuOpen = true;
+      closeMobileNav();
+      renderAll();
+    });
+  });
+}
+
+function appLinkHtml(item) {
+  const active = appSection === item.id;
+  return `
+    <button data-app="${item.id}" data-active="${active}"
+      class="app-link focus-ring w-full flex items-center gap-3 px-3 py-2.5 rounded-md border border-transparent text-sm text-muted transition-colors hover:text-ink hover:bg-surfacealt/60 text-left">
+      <span class="app-dot w-1.5 h-1.5 rounded-full bg-line shrink-0"></span>
+      ${icon(item.icon, 'w-4 h-4 shrink-0')}
+      <span class="flex-1">${item.label}</span>
+      ${item.badge ? `<span class="text-[10px] font-mono bg-clay/20 text-clay border border-clay/30 rounded-full px-1.5 py-0.5 leading-none">${item.badge}</span>` : ''}
+    </button>`;
+}
+
+function openMobileNav() {
+  document.getElementById('appNav').classList.remove('-translate-x-full');
+  document.getElementById('navOverlay').classList.remove('closed');
+}
+function closeMobileNav() {
+  document.getElementById('appNav').classList.add('-translate-x-full');
+  document.getElementById('navOverlay').classList.add('closed');
+}
+document.getElementById('openNavBtn').addEventListener('click', openMobileNav);
+document.getElementById('closeNavBtn').addEventListener('click', closeMobileNav);
+document.getElementById('navOverlay').addEventListener('click', closeMobileNav);
+
+/* ---------- Cabeçalho contextual ---------- */
+function renderHeaderChrome() {
+  const brand = document.getElementById('headerBrand');
+  const actions = document.getElementById('headerActions');
+
+  if (appSection === 'staff' || appSection === 'staff-placeholder') {
+    brand.innerHTML = `
+      <div class="w-8 h-8 rounded-sm border-2 border-pitch flex items-center justify-center font-display font-semibold text-pitch text-xs shrink-0">11</div>
+      <div class="min-w-0">
+        <p class="font-display uppercase tracking-wide text-base leading-none truncate">Plantel</p>
+        <p class="text-[10px] text-muted font-mono -mt-0.5">áreas de staff</p>
+      </div>`;
+  } else {
+    const meta = SECTION_META[appSection] || { icon: 'home', label: 'PitchNet.pt' };
+    brand.innerHTML = `
+      <span class="w-8 h-8 rounded-md bg-surfacealt border border-line flex items-center justify-center text-pitch shrink-0">${icon(meta.icon, 'w-4 h-4')}</span>
+      <p class="font-display uppercase tracking-wide text-base leading-none truncate">${meta.label}</p>`;
+  }
+
+  if (appSection === 'staff') {
+    actions.innerHTML = `
+      <div class="flex items-center gap-2 bg-surface border border-line rounded-full pl-3 pr-1.5 py-1.5">
+        <span class="text-[11px] font-mono text-muted uppercase tracking-wide hidden sm:inline">A ver como</span>
+        <select id="roleSwitch" class="focus-ring bg-surfacealt border border-line rounded-full text-sm pl-3 pr-7 py-1 outline-none cursor-pointer"></select>
+      </div>
+      <button id="openPerms" class="focus-ring hidden sm:flex items-center gap-1.5 border border-line rounded-full px-3.5 py-2 text-xs font-mono uppercase tracking-wide text-muted hover:text-ink hover:border-pitch/50 transition-colors">
+        ${icon('gear', 'w-3.5 h-3.5')}
+        Permissões
+      </button>`;
+
+    document.getElementById('roleSwitch').innerHTML = ROLES.map(r => `<option value="${r.id}" ${r.id===currentRole?'selected':''}>${r.label}</option>`).join('');
+    document.getElementById('roleSwitch').addEventListener('change', (e) => {
+      currentRole = e.target.value;
+      currentArea = visibleAreasFor(currentRole)[0].id;
+      renderNav();
+      renderMain();
+      renderAppNav();
+    });
+    document.getElementById('openPerms').addEventListener('click', () => {
+      renderPermGrid();
+      document.getElementById('modal').classList.remove('closed');
+      document.getElementById('modalOverlay').classList.remove('closed');
+    });
+  } else {
+    actions.innerHTML = '';
+  }
+}
+
+const SECTION_META = {
+  inicio:        { icon: 'home',     label: 'Início' },
+  notificacoes:  { icon: 'bell',     label: 'Notificações' },
+  aihub:         { icon: 'sparkles', label: 'AI Hub' },
+  pesquisa:      { icon: 'search',   label: 'Pesquisa' },
+  clubes:        { icon: 'building', label: 'Clubes & Academias' },
+  'staff-placeholder': { icon: 'user', label: 'Staff' },
+  suporte:       { icon: 'lifebuoy', label: 'Suporte' },
+  kyc:           { icon: 'idcard',   label: 'Submeter KYC' },
+  definicoes:    { icon: 'gear',     label: 'Definições' },
+};
+
+/* ---------- Páginas simples (fora do módulo Plantel) ---------- */
+function simplePage({ eyebrow, title, subtitle, tint = 'pitch', body }) {
+  return `
+    <div class="mb-6">
+      <p class="font-mono text-[11px] uppercase tracking-widest text-${tint} mb-1">${eyebrow}</p>
+      <h1 class="font-display text-2xl md:text-3xl uppercase tracking-tight">${title}</h1>
+      <p class="text-muted text-sm mt-1 max-w-xl">${subtitle}</p>
+    </div>
+    ${body}
+  `;
+}
+
+function viewInicio() {
+  const shortcuts = [
+    { label: 'Áreas de Staff', sub: 'Plantel, treino, saúde e performance', icon: 'user', app: 'staff' },
+    { label: 'Clubes & Academias', sub: 'Acesso restrito', icon: 'building', app: 'clubes' },
+    { label: 'AI Hub', sub: 'Chat, CV e simulação de entrevista', icon: 'sparkles', app: 'aihub' },
+    { label: 'Suporte', sub: 'Falar com a equipa PitchNet', icon: 'lifebuoy', app: 'suporte' },
+  ];
+  return simplePage({
+    eyebrow: 'PitchNet.pt', title: 'Início', tint: 'pitch',
+    subtitle: 'Ponto de partida da plataforma — atalhos rápidos para as áreas mais usadas.',
+    body: `
+      <div class="grid sm:grid-cols-2 gap-3">
+        ${shortcuts.map((s,i) => `
+          <button data-goto-app="${s.app}" class="card-enter focus-ring text-left border border-line rounded-lg p-4 bg-surface/40 hover:border-pitch/40 transition-colors flex items-center gap-3" style="animation-delay:${i*40}ms">
+            <span class="w-9 h-9 rounded-md bg-surfacealt border border-line flex items-center justify-center text-pitch">${icon(s.icon, 'w-4 h-4')}</span>
+            <span>
+              <span class="block font-medium">${s.label}</span>
+              <span class="block text-[11px] text-muted font-mono">${s.sub}</span>
+            </span>
+          </button>`).join('')}
+      </div>`
+  });
+}
+
+function viewNotificacoes() {
+  const items = [
+    { titulo: 'Relatório médico atualizado', desc: 'André Falcão — entorse de tornozelo, 3ª semana de fisioterapia.', tempo: 'há 2h', tint: 'clay' },
+    { titulo: 'Plano de treino da semana publicado', desc: 'Microciclo de 6 dias, foco em bloco defensivo.', tempo: 'há 5h', tint: 'pitch' },
+    { titulo: 'Pedido de acesso pendente', desc: 'Preparador Físico pediu acesso à área de Nutrição.', tempo: 'ontem', tint: 'gold' },
+  ];
+  return simplePage({
+    eyebrow: 'PitchNet.pt', title: 'Notificações', tint: 'clay',
+    subtitle: 'Atualizações recentes relevantes para a tua função.',
+    body: `
+      <div class="space-y-3">
+        ${items.map((n,i) => `
+          <div class="card-enter border border-line rounded-lg p-4 bg-surface/40 flex items-start gap-3" style="animation-delay:${i*40}ms">
+            <span class="w-2 h-2 rounded-full bg-${n.tint} mt-1.5 shrink-0"></span>
+            <div class="flex-1 min-w-0">
+              <p class="font-medium text-sm">${n.titulo}</p>
+              <p class="text-xs text-muted mt-1">${n.desc}</p>
+            </div>
+            <span class="text-[10px] font-mono text-muted shrink-0">${n.tempo}</span>
+          </div>`).join('')}
+      </div>`
+  });
+}
+
+function viewAiHub() {
+  const cards = [
+    { label: 'Chat', desc: 'Tira dúvidas sobre o plantel, treino ou candidaturas.', icon: 'sparkles' },
+    { label: 'Análise de CV', desc: 'Carrega um CV e recebe um resumo automático.', icon: 'idcard' },
+    { label: 'Entrevista simulada', desc: 'Pratica uma entrevista com perguntas geradas por IA.', icon: 'pulse' },
+  ];
+  return simplePage({
+    eyebrow: 'PitchNet.pt', title: 'AI Hub', tint: 'sky',
+    subtitle: 'Ferramentas com IA integradas na plataforma.',
+    body: `
+      <div class="grid sm:grid-cols-3 gap-3">
+        ${cards.map((c,i) => `
+          <div class="card-enter border border-line rounded-lg p-4 bg-surface/40" style="animation-delay:${i*40}ms">
+            <span class="w-9 h-9 rounded-md bg-surfacealt border border-line flex items-center justify-center text-sky mb-3">${icon(c.icon, 'w-4 h-4')}</span>
+            <p class="font-medium text-sm">${c.label}</p>
+            <p class="text-xs text-muted mt-1">${c.desc}</p>
+          </div>`).join('')}
+      </div>`
+  });
+}
+
+function viewPesquisa() {
+  return simplePage({
+    eyebrow: 'PitchNet.pt', title: 'Pesquisa', tint: 'gold',
+    subtitle: 'Procura jogadores, staff, clubes ou conteúdos na plataforma.',
+    body: `
+      <div class="border border-line rounded-lg bg-surface/40 p-4 flex items-center gap-3 max-w-lg">
+        ${icon('search', 'w-4 h-4 text-muted shrink-0')}
+        <input disabled placeholder="Pesquisar em PitchNet.pt…" class="bg-transparent outline-none text-sm w-full placeholder:text-muted text-ink">
+      </div>
+      <p class="text-xs text-muted mt-3 font-mono">demo — pesquisa desativada nesta apresentação</p>`
+  });
+}
+
+function viewClubesLocked() {
+  return `
+    <div class="card-enter border border-dashed border-line rounded-lg py-16 flex flex-col items-center gap-3 text-center max-w-md mx-auto">
+      ${icon('lock', 'w-6 h-6 text-muted')}
+      <p class="font-display text-lg uppercase tracking-tight">Acesso restrito</p>
+      <p class="text-sm text-muted">A área <span class="text-ink">Clubes &amp; Academias</span> está reservada a contas com o plano Academias ativo. Contacta a equipa comercial da PitchNet para ativar o acesso.</p>
+      <button class="focus-ring mt-2 text-xs font-mono uppercase tracking-wide text-pitch border border-pitch/40 rounded-full px-4 py-2 hover:bg-pitch/10 transition-colors">Pedir acesso</button>
+    </div>`;
+}
+
+function viewStaffPlaceholder() {
+  return `
+    <div class="card-enter border border-dashed border-line rounded-lg py-16 flex flex-col items-center gap-3 text-center max-w-md mx-auto">
+      ${icon('user', 'w-6 h-6 text-muted')}
+      <p class="font-display text-lg uppercase tracking-tight">${placeholderRoleLabel}</p>
+      <p class="text-sm text-muted">A área de staff para <span class="text-ink">${placeholderRoleLabel}</span> está em construção. Por agora, esta função ainda não tem um painel dedicado no Plantel.</p>
+    </div>`;
+}
+
+function viewSuporte() {
+  return simplePage({
+    eyebrow: 'PitchNet.pt', title: 'Suporte', tint: 'clay',
+    subtitle: 'Precisas de ajuda? A equipa PitchNet responde em menos de 24h.',
+    body: `
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div class="card-enter border border-line rounded-lg p-4 bg-surface/40">
+          <p class="font-medium text-sm">Abrir um ticket</p>
+          <p class="text-xs text-muted mt-1">Reporta um problema técnico ou pede uma alteração de acesso.</p>
+        </div>
+        <div class="card-enter border border-line rounded-lg p-4 bg-surface/40" style="animation-delay:40ms">
+          <p class="font-medium text-sm">Perguntas frequentes</p>
+          <p class="text-xs text-muted mt-1">Consulta respostas rápidas sobre permissões, planos e faturação.</p>
+        </div>
+      </div>`
+  });
+}
+
+function viewKyc() {
+  return simplePage({
+    eyebrow: 'PitchNet.pt', title: 'Submeter KYC', tint: 'gold',
+    subtitle: 'Verificação de identidade necessária para funções de Direção e faturação.',
+    body: `
+      <div class="border border-dashed border-line rounded-lg p-8 flex flex-col items-center text-center gap-2 max-w-md">
+        ${icon('idcard', 'w-6 h-6 text-muted')}
+        <p class="text-sm text-muted">Arrasta um documento de identificação ou clica para carregar.</p>
+        <button class="focus-ring mt-1 text-xs font-mono uppercase tracking-wide text-gold border border-gold/40 rounded-full px-4 py-2 hover:bg-gold/10 transition-colors">Carregar documento</button>
+      </div>`
+  });
+}
+
+function viewDefinicoes() {
+  const options = [
+    { label: 'Notificações por email', desc: 'Recebe um resumo diário das atualizações do plantel.' },
+    { label: 'Autenticação de dois fatores', desc: 'Camada extra de segurança para contas de Direção.' },
+    { label: 'Idioma', desc: 'Português (Portugal)' },
+  ];
+  return simplePage({
+    eyebrow: 'PitchNet.pt', title: 'Definições', tint: 'sky',
+    subtitle: 'Preferências da conta e da organização.',
+    body: `
+      <div class="space-y-3 max-w-lg">
+        ${options.map((o,i) => `
+          <div class="card-enter border border-line rounded-lg p-4 bg-surface/40 flex items-center justify-between gap-4" style="animation-delay:${i*40}ms">
+            <div>
+              <p class="text-sm font-medium">${o.label}</p>
+              <p class="text-xs text-muted mt-0.5">${o.desc}</p>
+            </div>
+          </div>`).join('')}
+      </div>`
+  });
+}
+
+/* ---------- Dispatcher principal ---------- */
+function renderAppMain() {
+  const sideNav = document.getElementById('sideNav');
+  const main = document.getElementById('mainArea');
+
+  if (appSection === 'staff') {
+    sideNav.classList.remove('hidden');
+    renderNav();
+    renderMain();
+    return;
+  }
+
+  sideNav.classList.add('hidden');
+  sideNav.innerHTML = '';
+
+  if (appSection === 'staff-placeholder') return main.innerHTML = viewStaffPlaceholder();
+  if (appSection === 'clubes') return main.innerHTML = viewClubesLocked();
+  if (appSection === 'inicio') return main.innerHTML = viewInicio();
+  if (appSection === 'notificacoes') return main.innerHTML = viewNotificacoes();
+  if (appSection === 'aihub') return main.innerHTML = viewAiHub();
+  if (appSection === 'pesquisa') return main.innerHTML = viewPesquisa();
+  if (appSection === 'suporte') return main.innerHTML = viewSuporte();
+  if (appSection === 'kyc') return main.innerHTML = viewKyc();
+  if (appSection === 'definicoes') return main.innerHTML = viewDefinicoes();
+}
+
+function renderAll() {
+  renderAppNav();
+  renderHeaderChrome();
+  renderAppMain();
+  document.getElementById('mainArea').addEventListener('click', mainAreaAppGotoHandler);
+}
+
+function mainAreaAppGotoHandler(e) {
+  const btn = e.target.closest('[data-goto-app]');
+  if (btn) {
+    appSection = btn.dataset.gotoApp;
+    renderAll();
+  }
+}
+
+/* ---------- Init ---------- */
+renderAll();
+</script>
+</body>
+</html>
